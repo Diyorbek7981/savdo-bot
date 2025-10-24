@@ -25,7 +25,7 @@ share_contact_text = {
 
 
 def get_phone(language: str):
-    text = share_contact_text.get(language, translations["uz"])
+    text = share_contact_text.get(language, share_contact_text["uz"])
 
     phone = ReplyKeyboardMarkup(
         keyboard=[
@@ -51,8 +51,8 @@ check = ReplyKeyboardMarkup(
 )
 
 messages = {
-    "uz": "📝 Ruhsatnoma olish",
-    "ru": "📝 Получить разрешение"
+    "uz": "🛒 Buyurtma berish",
+    "ru": "🛒 Сделать заказ"
 }
 
 change_language_text = {
@@ -62,7 +62,7 @@ change_language_text = {
 
 
 def menu(language: str):
-    text = messages.get(language, translations["uz"])
+    text = messages.get(language, messages["uz"])
     tet = change_language_text.get(language, change_language_text["uz"])
 
     phone = ReplyKeyboardMarkup(
@@ -77,3 +77,23 @@ def menu(language: str):
         resize_keyboard=True
     )
     return phone
+
+
+complate_order = {
+    "uz": "✅ Buyurtmani yakunlash",
+    "ru": "✅ Завершить заказ"
+}
+
+
+def comp_ord(language: str):
+    text = complate_order.get(language, complate_order["uz"])
+
+    ord = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=text)
+            ],
+        ],
+        resize_keyboard=True
+    )
+    return ord

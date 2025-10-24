@@ -1,8 +1,8 @@
-from aiogram import F, Router, Bot
+from aiogram import F, Router, Bot,types
 from aiogram.types import Message
 from aiogram.types import CallbackQuery
-from buttons.inline import language_button
-from buttons.reply import get_menu, get_phone, check, menu
+from buttons.inline import language_button, cat_inline, prod_inline, order_inline
+from buttons.reply import get_menu, get_phone, check, menu, comp_ord
 import requests
 from config import API, ADMIN
 from aiogram.fsm.context import FSMContext
@@ -13,6 +13,7 @@ import qrcode
 import os
 from aiogram.types import FSInputFile
 from aiogram.filters import Command, CommandStart
+from aiogram.enums import ParseMode
 
 router = Router()
 
@@ -445,6 +446,183 @@ async def register_button_handler(message: Message, state: FSMContext):
         await message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
 
 
-@router.message(lambda msg: msg.text in ["📝 Ruhsatnoma olish", "📝 Получить разрешение"])
-async def register_button_handler(message: Message):
-    pass
+@router.message(lambda msg: msg.text in ["🛒 Buyurtma berish", "🛒 Сделать заказ"])
+async def register_button_handler(message: Message, state: FSMContext):
+    try:
+        response = requests.get(f"{API}/users/{message.from_user.id}")
+        if response.status_code != 200:
+            text = "Tilni tanlang 🇺🇿| Выберите язык 🇷🇺"
+            await message.answer(text, reply_markup=language_button)
+            return
+
+        req = response.json()
+        language = req.get("language", "uz")
+
+        catgs = requests.get(f"{API}/cat_list/").json()  # ⚠️
+
+        if req["is_registered"] == False:
+            full_name_prompt = {
+                "uz": "👤 To‘liq ismingizni kiriting (F.I.Sh):",
+                "ru": "👤 Введите ваше полное имя (Ф.И.О):"
+            }
+            txt = full_name_prompt.get(language, "Unknown language ❌")
+            await message.answer(text=txt, reply_markup=ReplyKeyboardRemove())
+            await state.set_state(SignupStates.name)
+            return
+
+        try:
+            is_order = requests.get(url=f"{API}/user_orders/{req['id']}")
+            if is_order.status_code == 404:
+                payload = {
+                    "user": req['id'],
+                }
+                res_or_cre = requests.post(url=f"{API}/order_creat/", data=payload)
+                if res_or_cre.status_code in [200, 201]:
+                    messages = {
+                        "uz": "📋 Kerakli bo‘limni tanlang",
+                        "ru": "📋 Выберите нужный раздел"
+                    }
+
+                    mess = {
+                        "uz": "📦 Buyurtma berish bo‘limi",
+                        "ru": "📦 Раздел для оформления заказа"
+                    }
+
+                    tet = messages.get(language, "Unknown language ❌")
+                    tgt = mess.get(language, "Unknown language ❌")
+                    await message.answer(tgt, reply_markup=comp_ord(language))
+                    await message.answer(tet, reply_markup=cat_inline(catgs))
+                else:
+                    return f"⚠️Error in the request: {res_or_cre.status_code} | {res_or_cre.text}"
+            else:
+                messages = {
+                    "uz": "🟢 Sizda buyurtma ochilgan!",
+                    "ru": "🟢 У вас открыт заказ!"
+                }
+
+                msgg = {
+                    "uz": "📦 Savdoni davom ettirish uchun quyidagi bo‘limdan tanlang ⬇️\n\n❌ Jarayonni bekor qilish uchun: /stop ni bosing",
+                    "ru": "📦 Чтобы продолжить покупку, выберите раздел ниже ⬇️\n\n❌ Чтобы отменить процесс, нажмите: /stop"
+                }
+
+                tet = messages.get(language, "Unknown language ❌")
+                ttt = msgg.get(language, "Unknown language ❌")
+                await message.answer(tet, reply_markup=comp_ord(language))
+                await message.answer(ttt, reply_markup=cat_inline(catgs))
+        except Exception as e:
+            return f"[❌] Error in the request: {e}"
+    except Exception as e:
+        await message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("cat_"))
+async def category_selected(callback: CallbackQuery, state):
+    try:
+        response = requests.get(f"{API}/users/{callback.from_user.id}")
+        if response.status_code != 200:
+            text = "Tilni tanlang 🇺🇿| Выберите язык 🇷🇺"
+            await callback.message.answer(text, reply_markup=language_button)
+            return
+
+        req = response.json()
+        language = req.get("language", "uz")
+
+        if not req.get("is_registered", False):
+            full_name_prompt = {
+                "uz": "👤 To‘liq ismingizni kiriting (F.I.Sh):",
+                "ru": "👤 Введите ваше полное имя (Ф.И.О):"
+            }
+            txt = full_name_prompt.get(language, "Unknown language ❌")
+            await callback.message.answer(text=txt, reply_markup=ReplyKeyboardRemove())
+            await state.set_state(SignupStates.name)
+            return
+
+        category_id = int(callback.data.split("_")[1])
+
+        product_response = requests.get(f"{API}/prod_categ/{category_id}/")
+
+        if product_response.status_code != 200:
+            messages = {
+                "uz": "❌ Mahsulotlar topilmadi",
+                "ru": "❌ Товары не найдены"
+            }
+            await callback.answer(messages.get(language, messages["uz"]), show_alert=True)
+            return
+
+        products = product_response.json()
+
+        if not products:
+            messages = {
+                "uz": "❌ Bu kategoriyada mahsulot yo‘q",
+                "ru": "❌ В этой категории нет товаров"
+            }
+            await callback.answer(messages.get(language, messages["uz"]), show_alert=True)
+            return
+
+        messages = {
+            "uz": f"📦 {len(products)} ta mahsulot topildi:",
+            "ru": f"📦 Найдено {len(products)} товаров:"
+        }
+        await callback.message.edit_text(
+            text=messages.get(language, messages["uz"]),
+            reply_markup=prod_inline(products)
+        )
+
+    except Exception as e:
+        await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}")
+
+
+@router.callback_query(F.data.startswith("prod_"))
+async def show_product_detail(callback: CallbackQuery, state: FSMContext):
+    product_id = int(callback.data.split("_")[1])
+
+    try:
+        response = requests.get(f"{API}/users/{callback.from_user.id}")
+        if response.status_code != 200:
+            text = "Tilni tanlang 🇺🇿| Выберите язык 🇷🇺"
+            await callback.message.answer(text, reply_markup=language_button)
+            return
+
+        req = response.json()
+        language = req.get("language", "uz")
+
+        if req["is_registered"] == False:
+            full_name_prompt = {
+                "uz": "👤 To‘liq ismingizni kiriting (F.I.Sh):",
+                "ru": "👤 Введите ваше полное имя (Ф.И.О):"
+            }
+            txt = full_name_prompt.get(language, "Unknown language ❌")
+            await callback.message.answer(text=txt, reply_markup=ReplyKeyboardRemove())
+            await state.set_state(SignupStates.name)
+            return
+
+        res = requests.get(f"{API}/products/{product_id}/")
+        if res.status_code != 200:
+            await callback.answer("❌ Mahsulot topilmadi", show_alert=True)
+            return
+
+        product = res.json()
+
+        caption = (
+            f"<b>{product['name']}</b>\n"
+            f"💰 Narxi: {product['price']} so‘m / {product['unit']}\n\n"
+            f"📂 Kategoriya: {product['category_name']}\n"
+            f"📦 Holati: {'Mavjud ✅' if product['available'] else 'Mavjud emas ❌'}"
+        )
+
+        # Rasm bilan yuboramiz
+        if product.get("photo"):
+            await callback.message.answer_photo(
+                photo=types.FSInputFile(product['photo']),
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+                reply_markup=order_inline(product_id, language)
+            )
+        else:
+            await callback.message.answer(
+                text=caption,
+                parse_mode=ParseMode.HTML,
+                reply_markup=order_inline(product_id, language)
+            )
+    except Exception as e:
+        await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
