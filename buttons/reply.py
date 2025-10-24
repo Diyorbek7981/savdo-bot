@@ -43,7 +43,27 @@ check = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text='/new'),
-        ]
+        ],
+        [
+            KeyboardButton(text='/stop'),
+        ],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder='Select the required section'
+)
+
+check_after_reg = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text='✔️'),
+        ],
+        [
+            KeyboardButton(text='/start'),
+        ],
+        [
+            KeyboardButton(text='/stop'),
+        ],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,

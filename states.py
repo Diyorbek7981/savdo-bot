@@ -6,3 +6,13 @@ class SignupStates(StatesGroup):
     age = State()
     phone = State()
     check = State()
+
+
+class OrderStates(StatesGroup):
+    quantity = State()
+
+
+class CompleteOrderStates(StatesGroup):
+    payment = State()
+    address = State()
+    confirm_order = State()
