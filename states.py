@@ -13,6 +13,5 @@ class OrderStates(StatesGroup):
 
 
 class CompleteOrderStates(StatesGroup):
-    payment = State()
     address = State()
     confirm_order = State()

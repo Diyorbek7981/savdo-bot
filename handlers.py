@@ -1,7 +1,7 @@
 from aiogram import F, Router, Bot, types
 from aiogram.types import Message
 from aiogram.types import CallbackQuery
-from buttons.inline import language_button, cat_inline, prod_inline, order_inline, payment_inline
+from buttons.inline import language_button, cat_inline, prod_inline, order_inline
 from buttons.reply import get_menu, get_phone, check, menu, comp_ord, check_after_reg
 import requests
 from config import API, ADMIN
@@ -20,7 +20,6 @@ router = Router()
 async def start(message: Message, state: FSMContext):
     try:
         await state.clear()
-        await message.delete()
         response = requests.get(f"{API}/users/{message.from_user.id}")
 
         if response.status_code != 200:
@@ -42,13 +41,13 @@ async def start(message: Message, state: FSMContext):
             return
 
         order_response = requests.get(f"{API}/user_orders/{req['id']}/")
-        if order_response.status_code == 200:
+        if order_response.status_code == 200 and order_response.json()['is_confirmed'] == False:
             order = order_response.json()
             requests.delete(f"{API}/order_del/{order['id']}/")
 
         services_text = {
-            "uz": "Bizning xizmatlar bilan tanishib chiqing",
-            "ru": "Ознакомьтесь с нашими услугами"
+            "uz": "💼 Bizning xizmatlar bilan tanishib chiqing\n\n💬 Yordam uchun: /help",
+            "ru": "💼 Ознакомьтесь с нашими услугами\n\n💬 Для помощи используйте: /help"
         }
         txt = services_text.get(language, services_text["uz"])
         await message.answer(f"🌟 {message.from_user.full_name} {txt}", reply_markup=menu(language))
@@ -93,7 +92,6 @@ async def state_name(message: Message, state: FSMContext):
 
 @router.callback_query(lambda c: c.data.startswith("stlang_"))
 async def process_language(callback: CallbackQuery):
-    await callback.message.delete()
     lang_code = callback.data.split("_")[1]
     user_id = callback.from_user.id
     try:
@@ -206,13 +204,10 @@ async def stop_process(message: Message, state: FSMContext):
         language = user.get("language", "uz")
         user_id = user["id"]
 
-        try:
-            order_response = requests.get(f"{API}/user_orders/{user_id}/")
-            if order_response.status_code == 200:
-                order = order_response.json()
-                requests.delete(f"{API}/order_del/{order['id']}/")
-        except Exception as e:
-            print(f"⚠️ Orderni o‘chirishda xatolik: {e}")
+        order_response = requests.get(f"{API}/user_orders/{user_id}/")
+        if order_response.status_code == 200 and order_response.json()['is_confirmed'] == False:
+            order = order_response.json()
+            requests.delete(f"{API}/order_del/{order['id']}/")
 
         current = await state.get_state()
         if current is None:
@@ -250,13 +245,10 @@ async def restart_process(message: Message, state: FSMContext):
         language = user.get("language", "uz")
         user_id = user["id"]
 
-        try:
-            order_response = requests.get(f"{API}/user_orders/{user_id}/")
-            if order_response.status_code == 200:
-                order = order_response.json()
-                requests.delete(f"{API}/order_del/{order['id']}/")
-        except Exception as e:
-            print(f"⚠️ Orderni o‘chirishda xatolik: {e}")
+        order_response = requests.get(f"{API}/user_orders/{user_id}/")
+        if order_response.status_code == 200 and order_response.json()['is_confirmed'] == False:
+            order = order_response.json()
+            requests.delete(f"{API}/order_del/{order['id']}/")
 
         await state.clear()
 
@@ -369,14 +361,14 @@ async def state_phone(message: Message, state: FSMContext):
         }
 
         conf_msg = {
-            "uz": "❗ ✔️ yoki /new ni tanlang",
-            "ru": "❗ Выберите ✔️ или /new"
+            "uz": "❗ Tasdiqlash yoki /new ni tanlang",
+            "ru": "❗ Выберите Подтвердить или /new"
         }
 
         txt = messages.get(language, "Unknown language ❌")
         txt_conf = conf_msg.get(language, "Unknown language ❌")
         txt_template = templates.get(language, "Unknown language ❌")
-        await message.answer(f"{txt}\n\n{txt_template}\n\n{txt_conf}", reply_markup=check)
+        await message.answer(f"{txt}\n\n{txt_template}\n\n{txt_conf}", reply_markup=check(language))
         await state.set_state(SignupStates.check)
 
     else:
@@ -387,7 +379,7 @@ async def state_phone(message: Message, state: FSMContext):
 async def state_name(message: Message, state: FSMContext):
     req = requests.get(f"{API}/users/{message.from_user.id}").json()
     language = req["language"]
-    if message.text == "✔️":
+    if message.text in ["✅ Tasdiqlash", "✅ Подтвердить"]:
         data = await state.get_data()
 
         api_data = {
@@ -423,22 +415,22 @@ async def state_name(message: Message, state: FSMContext):
                 )
             }
             text = error_text.get(language, error_text["uz"])
-            await message.answer(text, reply_markup=check)
+            await message.answer(text, reply_markup=check(language))
     else:
         txt = {
             "uz": (
-                "✔️ Ma'lumotlarni tasdiqlash: ✔️\n"
+                "✔️ Ma'lumotlarni tasdiqlash: Tasdiqlash\n"
                 "🗑 Jarayonni bekor qilish: /stop\n"
                 "🔄 Jarayonni boshidan boshlash: /new"
             ),
             "ru": (
-                "✔️ Подтвердить информацию: ✔️\n"
+                "✔️ Подтвердить информацию: Подтвердить\n"
                 "🗑 Отменить процесс: /stop\n"
                 "🔄 Начать процесс заново: /new"
             )
         }
         text = txt.get(language, txt["uz"])
-        await message.answer(text, reply_markup=check)
+        await message.answer(text, reply_markup=check(language))
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -469,6 +461,7 @@ async def register_button_handler(message: Message, state: FSMContext):
     except Exception as e:
         await message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
 
+
 @router.message(lambda msg: msg.text in ["🛒 Buyurtma berish", "🛒 Сделать заказ"])
 async def register_button_handler(message: Message, state: FSMContext):
     await message.delete()
@@ -496,7 +489,7 @@ async def register_button_handler(message: Message, state: FSMContext):
 
         try:
             is_order = requests.get(url=f"{API}/user_orders/{req['id']}")
-            if is_order.status_code == 404:
+            if is_order.status_code == 404 and is_order.json()['is_confirmed'] == False:
                 payload = {
                     "user": req['id'],
                 }
@@ -590,7 +583,7 @@ async def category_selected(callback: CallbackQuery, state):
         }
         await callback.message.answer(
             text=messages.get(language, messages["uz"]),
-            reply_markup=prod_inline(products)
+            reply_markup=prod_inline(products, language, category_id)
         )
 
     except Exception as e:
@@ -650,13 +643,13 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
                 photo=types.FSInputFile(product['photo']),
                 caption=caption,
                 parse_mode=ParseMode.HTML,
-                reply_markup=order_inline(product_id, language)
+                reply_markup=order_inline(product_id, language, product['category'])
             )
         else:
             await callback.message.answer(
                 text=caption,
                 parse_mode=ParseMode.HTML,
-                reply_markup=order_inline(product_id, language)
+                reply_markup=order_inline(product_id, language, product['category'])
             )
     except Exception as e:
         await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
@@ -783,6 +776,67 @@ async def quantity_entered(message: Message, state: FSMContext):
         await message.answer(txt)
 
 
+@router.callback_query(F.data.startswith("back_"))
+async def back_handler(callback: CallbackQuery):
+    await callback.message.delete()
+    try:
+        response = requests.get(f"{API}/users/{callback.from_user.id}")
+        if response.status_code != 200:
+            await callback.message.answer("Tilni tanlang 🇺🇿| Выберите язык 🇷🇺", reply_markup=language_button)
+            return
+
+        user = response.json()
+        language = user.get("language", "uz")
+
+        data = callback.data.split("_")
+
+        if data[1] == "cat":
+            catgs = requests.get(f"{API}/cat_list/").json()
+            msg = {
+                "uz": "📦 Kategoriyalar ro‘yxati:",
+                "ru": "📦 Список категорий:"
+            }
+            await callback.message.answer(
+                text=msg.get(language, msg["uz"]),
+                reply_markup=cat_inline(catgs)
+            )
+
+        elif data[1] == "prod":
+            category_id = int(data[2])
+            product_response = requests.get(f"{API}/prod_categ/{category_id}/")
+            if product_response.status_code != 200:
+                messages = {
+                    "uz": "❌ Mahsulotlar topilmadi",
+                    "ru": "❌ Товары не найдены"
+                }
+                await callback.answer(messages.get(language, messages["uz"]), show_alert=True)
+                return
+
+            products = product_response.json()
+            if not products:
+                messages = {
+                    "uz": "❌ Bu kategoriyada mahsulot yo‘q",
+                    "ru": "❌ В этой категории нет товаров"
+                }
+                await callback.answer(messages.get(language, messages["uz"]), show_alert=True)
+                return
+
+            messages = {
+                "uz": f"📦 {len(products)} ta mahsulot topildi:",
+                "ru": f"📦 Найдено {len(products)} товаров:"
+            }
+            await callback.message.answer(
+                text=messages.get(language, messages["uz"]),
+                reply_markup=prod_inline(products, language, category_id)
+            )
+
+        else:
+            await callback.answer("⚠️ Noma’lum orqaga tur!", show_alert=True)
+
+    except Exception as e:
+        await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}")
+
+
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 @router.message(F.text.in_(["✅ Buyurtmani yakunlash", "✅ Завершить заказ"]))
 async def complete_order_start(message: Message, state: FSMContext):
@@ -819,36 +873,17 @@ async def complete_order_start(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        payment_text = {
-            "uz": "💰 To‘lov turini tanlang:",
-            "ru": "💰 Выберите тип оплаты:"
+        delivery_address_text = {
+            "uz": "📍 Yetkazib berish manzilini to‘liq kiriting:",
+            "ru": "📍 Введите полный адрес доставки:"
         }
 
-        await message.answer(payment_text.get(language, payment_text["uz"]), reply_markup=payment_inline(language))
-        await state.set_state(CompleteOrderStates.payment)
+        await message.answer(delivery_address_text.get(language, delivery_address_text["uz"]),
+                             reply_markup=ReplyKeyboardRemove())
+        await state.set_state(CompleteOrderStates.address)
 
     except Exception as e:
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
-
-
-@router.callback_query(CompleteOrderStates.payment)
-async def payment_selected(callback: CallbackQuery, state: FSMContext):
-    try:
-        user = requests.get(f"{API}/users/{callback.from_user.id}").json()
-        language = user.get("language", "uz")
-
-        if language == "ru":
-            payment_type = "Наличные" if callback.data == "pay_cash" else "Карта"
-            address_text = "📍 Введите адрес доставки:"
-        else:
-            payment_type = "Naqd" if callback.data == "pay_cash" else "Karta"
-            address_text = "📍 Yetkazib berish manzilini kiriting:"
-
-        await state.update_data(payment_type=payment_type)
-        await callback.message.answer(address_text)
-        await state.set_state(CompleteOrderStates.address)
-    except Exception as e:
-        await callback.message.answer(f"⚠️ Xatolik yuz berdi: {e}")
 
 
 @router.message(CompleteOrderStates.address)
@@ -882,18 +917,14 @@ async def address_entered(message: Message, state: FSMContext):
 
         items_text = "\n".join(receipt_lines)
 
-        data = await state.get_data()
-        payment_type = data.get("payment_type", "Naqd")
-
         if language == "ru":
             text = (
                 f"🧾 *Ваш заказ*\n\n"
                 f"{items_text}\n"
                 f"💰 *Итого:* {order['total_price']} сум\n\n"
-                f"💳 Оплата: {payment_type}\n"
                 f"📍 Адрес: {address}\n\n"
                 f"Проверьте данные и подтвердите заказ ✅\n\n\n"
-                f"✔️ Подтвердить информацию: ✔️\n"
+                f"✔️ Подтвердить информацию: Подтвердить\n"
                 f"🗑 Отменить процесс: /stop\n"
                 f"🔄 Начать процесс заново: /start"
             )
@@ -902,15 +933,14 @@ async def address_entered(message: Message, state: FSMContext):
                 f"🧾 *Sizning buyurtmangiz*\n\n"
                 f"{items_text}\n"
                 f"💰 *Jami:* {order['total_price']} so‘m\n\n"
-                f"💳 To‘lov turi: {payment_type}\n"
                 f"📍 Manzil: {address}\n\n"
                 f"Ma’lumotlarni tekshirib, buyurtmani tasdiqlang ✅\n\n\n"
-                f"✔️ Ma'lumotlarni tasdiqlash: ✔️\n"
+                f"✔️ Ma'lumotlarni tasdiqlash: Tasdiqlash\n"
                 f"🗑 Jarayonni bekor qilish: /stop\n"
                 f"🔄 Jarayonni boshidan boshlash: /start"
             )
 
-        await message.answer(text, reply_markup=check_after_reg)
+        await message.answer(text, reply_markup=check_after_reg(language))
         await state.set_state(CompleteOrderStates.confirm_order)
     except Exception as e:
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
@@ -922,12 +952,11 @@ async def confirm_order_state(message: Message, state: FSMContext):
         user = requests.get(f"{API}/users/{message.from_user.id}").json()
         language = user.get("language", "uz")
 
-        if message.text == "✔️":
+        if message.text in ["✅ Tasdiqlash", "✅ Подтвердить"]:
             order = requests.get(f"{API}/user_orders/{user['id']}/").json()
             items = order.get("items", [])
 
             data = await state.get_data()
-            payment_type = data.get("payment_type", "Naqd")
             address = data.get("address", "Manzil kiritilmagan")
 
             grouped_items = {}
@@ -949,47 +978,60 @@ async def confirm_order_state(message: Message, state: FSMContext):
             items_text = "\n".join(receipt_lines)
 
             try:
-                requests.delete(f"{API}/order_del/{order['id']}/")
+                update = requests.patch(
+                    f"{API}/user_order_update/{user['id']}/",
+                    json={"is_confirmed": True}
+                )
+                if update.status_code not in [200, 201]:
+                    await message.answer(f"⚠️ Buyurtma berilmadi: {update.text}")
+                    return
             except Exception as e:
-                await message.answer(f"⚠️ Xatolik yuz berdi: {e}", reply_markup=menu(language))
+                await message.answer(f"⚠️ Xatolik yuz berdi (update): {e}", reply_markup=menu(language))
                 return
 
             admin_text = (
                 f"📩 *Yangi buyurtma*\n\n"
                 f"{items_text}\n"
                 f"💰 *Jami:* {order['total_price']} so‘m\n"
-                f"💳 To‘lov turi: {payment_type}\n"
                 f"📍 Manzil: {address}\n\n"
                 f"👤 Foydalanuvchi: {user.get('first_name', '')} (@{user.get('user_name', '')})\n"
                 f"📞 Telefon: {user.get('phone_number', '❌ Telefon yo‘q')}"
             )
 
             admin = requests.get(f"{API}/users/{ADMIN}").json()
-            user_text = (
-                f"✅ Ma’lumotlaringiz adminga yuborildi!\n\n"
-                f"📩 Admin bilan bog‘lanish: [@{admin['user_name']}](https://t.me/{admin['user_name']})"
-            )
+            if language == "ru":
+                user_text = (
+                    f"✅ Ваши данные были отправлены администратору!\n"
+                    f"📩 Связаться с администратором: [@{admin['user_name']}](https://t.me/{admin['user_name']})\n\n"
+                    f"🔁 Хотите сделать новый заказ?"
+                )
+            else:
+                user_text = (
+                    f"✅ Ma’lumotlaringiz adminga yuborildi!\n"
+                    f"📩 Admin bilan bog‘lanish: [@{admin['user_name']}](https://t.me/{admin['user_name']})\n\n"
+                    f"🔁 Qayta buyurtma bermoqchimisiz?"
+                )
 
             await message.bot.send_message(
-                ADMIN, admin_text, parse_mode="Markdown", disable_web_page_preview=True
+                ADMIN, admin_text, parse_mode="HTML", disable_web_page_preview=True
             )
 
-            await message.answer(user_text, parse_mode="Markdown", reply_markup=menu(language))
+            await message.answer(user_text, reply_markup=menu(language))
             await state.clear()
         else:
             txt = {
                 "uz": (
-                    "✔️ Ma'lumotlarni tasdiqlash: ✔️\n"
+                    "✔️ Ma'lumotlarni tasdiqlash: Tasdiqlash\n"
                     "🗑 Jarayonni bekor qilish: /stop\n"
                     "🔄 Jarayonni boshidan boshlash: /start"
                 ),
                 "ru": (
-                    "✔️ Подтвердить информацию: ✔️\n"
+                    "✔️ Подтвердить информацию: Подтвердить\n"
                     "🗑 Отменить процесс: /stop\n"
                     "🔄 Начать процесс заново: /start"
                 )
             }
             text = txt.get(language, txt["uz"])
-            await message.answer(text, reply_markup=check)
+            await message.answer(text, reply_markup=check_after_reg(language))
     except Exception as e:
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")

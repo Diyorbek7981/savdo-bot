@@ -20,12 +20,32 @@ def cat_inline(data: list):
     return markup.as_markup()
 
 
-def prod_inline(data: list):
+# def prod_inline(data: list, language: str, category_id: int):
+#     markup = InlineKeyboardBuilder()
+#     for p in data:
+#         markup.button(text=f"{p['name']} — {p['price']} so‘m/{p['unit']}",
+#                       callback_data=f"prod_{p['id']}")
+#     markup.button(
+#         text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
+#         callback_data=f"back_cat_{category_id}")
+#     markup.adjust(3, repeat=True)
+#     return markup.as_markup()
+
+
+def prod_inline(data: list, language: str, category_id: int):
     markup = InlineKeyboardBuilder()
     for p in data:
-        markup.button(text=f"{p['name']} — {p['price']} so‘m/{p['unit']}",
-                      callback_data=f"prod_{p['id']}")
+        markup.button(
+            text=f"{p['name']} — {p['price']} so‘m/{p['unit']}",
+            callback_data=f"prod_{p['id']}"
+        )
     markup.adjust(3, repeat=True)
+    markup.row(
+        InlineKeyboardButton(
+            text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
+            callback_data=f"back_cat_{category_id}"
+        )
+    )
     return markup.as_markup()
 
 
@@ -35,36 +55,13 @@ messages = {
 }
 
 
-def order_inline(product_id: int, language: str):
+def order_inline(product_id: int, language: str, category_id: int):
     text = messages.get(language, messages["uz"])
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=text, callback_data=f"buy_{product_id}")]
-        ]
-    )
-    return markup
-
-
-def payment_inline(language: str):
-    buttons_text = {
-        "uz": {
-            "cash": "💵 Naqd",
-            "card": "💳 Karta",
-        },
-        "ru": {
-            "cash": "💵 Наличные",
-            "card": "💳 Карта",
-        }
-    }
-
-    lang = buttons_text.get(language, buttons_text["uz"])
-
-    markup = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=lang["cash"], callback_data="pay_cash"),
-                InlineKeyboardButton(text=lang["card"], callback_data="pay_card")
-            ],
+            [InlineKeyboardButton(text=text, callback_data=f"buy_{product_id}")],
+            [InlineKeyboardButton(text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
+                                  callback_data=f"back_prod_{category_id}")]
         ]
     )
     return markup

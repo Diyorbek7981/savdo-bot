@@ -36,39 +36,53 @@ def get_phone(language: str):
     return phone
 
 
-check = ReplyKeyboardMarkup(
-    keyboard=[
-        [
-            KeyboardButton(text='✔️'),
-        ],
-        [
-            KeyboardButton(text='/new'),
-        ],
-        [
-            KeyboardButton(text='/stop'),
-        ],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-    input_field_placeholder='Select the required section'
-)
+confirm_text = {
+    "uz": "✅ Tasdiqlash",
+    "ru": "✅ Подтвердить"
+}
 
-check_after_reg = ReplyKeyboardMarkup(
-    keyboard=[
-        [
-            KeyboardButton(text='✔️'),
+
+def check(language: str):
+    text = confirm_text.get(language, confirm_text["uz"])
+    check = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=text),
+            ],
+            [
+                KeyboardButton(text='/new'),
+            ],
+            [
+                KeyboardButton(text='/stop'),
+            ],
         ],
-        [
-            KeyboardButton(text='/start'),
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder='Select the required section'
+    )
+    return check
+
+
+def check_after_reg(language: str):
+    text = confirm_text.get(language, confirm_text["uz"])
+    check_after_reg = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=text),
+            ],
+            [
+                KeyboardButton(text='/new'),
+            ],
+            [
+                KeyboardButton(text='/stop'),
+            ],
         ],
-        [
-            KeyboardButton(text='/stop'),
-        ],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-    input_field_placeholder='Select the required section'
-)
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder='Select the required section'
+    )
+    return check_after_reg
+
 
 messages = {
     "uz": "🛒 Buyurtma berish",
