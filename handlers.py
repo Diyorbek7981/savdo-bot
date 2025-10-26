@@ -489,7 +489,22 @@ async def register_button_handler(message: Message, state: FSMContext):
 
         try:
             is_order = requests.get(url=f"{API}/user_orders/{req['id']}")
-            if is_order.status_code == 404 and is_order.json()['is_confirmed'] == False:
+            if is_order.status_code != 404 and is_order.json()['is_confirmed'] == False:
+                messages = {
+                    "uz": "🟢 Sizda buyurtma ochilgan!",
+                    "ru": "🟢 У вас открыт заказ!"
+                }
+
+                msgg = {
+                    "uz": "📦 Savdoni davom ettirish uchun quyidagi bo‘limdan tanlang ⬇️\n\n❌ Jarayonni bekor qilish uchun: /stop ni bosing",
+                    "ru": "📦 Чтобы продолжить покупку, выберите раздел ниже ⬇️\n\n❌ Чтобы отменить процесс, нажмите: /stop"
+                }
+
+                tet = messages.get(language, "Unknown language ❌")
+                ttt = msgg.get(language, "Unknown language ❌")
+                await message.answer(tet, reply_markup=comp_ord(language))
+                await message.answer(ttt, reply_markup=cat_inline(catgs))
+            else:
                 payload = {
                     "user": req['id'],
                 }
@@ -511,21 +526,6 @@ async def register_button_handler(message: Message, state: FSMContext):
                     await message.answer(tet, reply_markup=cat_inline(catgs))
                 else:
                     return f"⚠️Error in the request: {res_or_cre.status_code} | {res_or_cre.text}"
-            else:
-                messages = {
-                    "uz": "🟢 Sizda buyurtma ochilgan!",
-                    "ru": "🟢 У вас открыт заказ!"
-                }
-
-                msgg = {
-                    "uz": "📦 Savdoni davom ettirish uchun quyidagi bo‘limdan tanlang ⬇️\n\n❌ Jarayonni bekor qilish uchun: /stop ni bosing",
-                    "ru": "📦 Чтобы продолжить покупку, выберите раздел ниже ⬇️\n\n❌ Чтобы отменить процесс, нажмите: /stop"
-                }
-
-                tet = messages.get(language, "Unknown language ❌")
-                ttt = msgg.get(language, "Unknown language ❌")
-                await message.answer(tet, reply_markup=comp_ord(language))
-                await message.answer(ttt, reply_markup=cat_inline(catgs))
         except Exception as e:
             return f"[❌] Error in the request: {e}"
     except Exception as e:
@@ -865,9 +865,9 @@ async def complete_order_start(message: Message, state: FSMContext):
 
         if not order or not order.get("items"):
             text = (
-                "🛍 Sizda yakunlanmagan buyurtma mavjud emas.\nIltimos, avval mahsulot tanlang."
+                "🛍 Sizda yakunlanmagan buyurtma mavjud \nIltimos, avval mahsulot tanlang."
                 if language == "uz"
-                else "🛍 У вас нет активных заказов.\nПожалуйста, сначала выберите товары."
+                else "🛍 У вас Есть активных заказов.\nПожалуйста, сначала выберите товары."
             )
             await message.answer(text, reply_markup=cat_inline(catgs))
             await state.clear()
