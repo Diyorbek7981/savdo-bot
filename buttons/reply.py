@@ -94,10 +94,16 @@ change_language_text = {
     "ru": "🌐 Изменить язык"
 }
 
+orders_status_text = {
+    "uz": "📦 Buyurtmalarim holati",
+    "ru": "📦 Статус моих заказов"
+}
+
 
 def menu(language: str):
     text = messages.get(language, messages["uz"])
     tet = change_language_text.get(language, change_language_text["uz"])
+    txt = orders_status_text.get(language, orders_status_text["uz"])
 
     phone = ReplyKeyboardMarkup(
         keyboard=[
@@ -106,7 +112,10 @@ def menu(language: str):
             ],
             [
                 KeyboardButton(text=tet)
-            ]
+            ],
+            [
+                KeyboardButton(text=txt)
+            ],
         ],
         resize_keyboard=True
     )

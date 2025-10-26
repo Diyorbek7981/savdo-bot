@@ -50,9 +50,10 @@ def prod_inline(data: list, language: str, category_id: int):
 
 
 messages = {
-    "uz": "🛒 Buyurtma berish",
-    "ru": "🛒 Сделать заказ"
+    "uz": "🛒 Mahsulotni savatga qo‘shish",
+    "ru": "🛒 Добавить товар в корзину"
 }
+
 
 
 def order_inline(product_id: int, language: str, category_id: int):

@@ -464,7 +464,6 @@ async def register_button_handler(message: Message, state: FSMContext):
 
 @router.message(lambda msg: msg.text in ["🛒 Buyurtma berish", "🛒 Сделать заказ"])
 async def register_button_handler(message: Message, state: FSMContext):
-    await message.delete()
     try:
         response = requests.get(f"{API}/users/{message.from_user.id}")
         if response.status_code != 200:
@@ -1003,20 +1002,23 @@ async def confirm_order_state(message: Message, state: FSMContext):
                 user_text = (
                     f"✅ Ваши данные были отправлены администратору!\n"
                     f"📩 Связаться с администратором: [@{admin['user_name']}](https://t.me/{admin['user_name']})\n\n"
-                    f"🔁 Хотите сделать новый заказ?"
                 )
             else:
                 user_text = (
                     f"✅ Ma’lumotlaringiz adminga yuborildi!\n"
                     f"📩 Admin bilan bog‘lanish: [@{admin['user_name']}](https://t.me/{admin['user_name']})\n\n"
-                    f"🔁 Qayta buyurtma bermoqchimisiz?"
                 )
 
             await message.bot.send_message(
                 ADMIN, admin_text, parse_mode="HTML", disable_web_page_preview=True
             )
+            orders_info_text = {
+                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz qaysi jarayonda ekanligini bilish: Buyurtmalarim holati",
+                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте, на каком этапе ваш заказ: Статус моих заказов"
+            }
 
             await message.answer(user_text, reply_markup=menu(language))
+            await message.answer(orders_info_text.get(language, orders_info_text["uz"]))
             await state.clear()
         else:
             txt = {
@@ -1033,5 +1035,84 @@ async def confirm_order_state(message: Message, state: FSMContext):
             }
             text = txt.get(language, txt["uz"])
             await message.answer(text, reply_markup=check_after_reg(language))
+    except Exception as e:
+        await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
+
+
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+@router.message(F.text.in_(["📦 Buyurtmalarim holati", "📦 Статус моих заказов"]))
+async def show_order_status(message: Message):
+    try:
+        user_res = requests.get(f"{API}/users/{message.from_user.id}")
+        if user_res.status_code != 200:
+            await message.answer(
+                "Tilni tanlang 🇺🇿| Выберите язык 🇷🇺",
+                reply_markup=language_button
+            )
+            return
+
+        user = user_res.json()
+        language = user.get("language", "uz")
+
+        order_res = requests.get(f"{API}/orders_list/{user['id']}/")
+        if order_res.status_code != 200:
+            texts = {
+                "uz": "❌ Sizda faol buyurtma mavjud emas.",
+                "ru": "❌ У вас нет активных заказов."
+            }
+            await message.answer(texts.get(language, texts["uz"]), reply_markup=menu(language))
+            return
+
+        orders = order_res.json()
+        if not isinstance(orders, list) or len(orders) == 0:
+            texts = {
+                "uz": "❌ Sizda faol buyurtma mavjud emas.",
+                "ru": "❌ У вас нет активных заказов."
+            }
+            await message.answer(texts.get(language, texts["uz"]), reply_markup=menu(language))
+            return
+
+        # Holatlarni tarjimalari
+        status_texts = {
+            "new": {"uz": "🆕 Yangi", "ru": "🆕 Новый"},
+            "preparing": {"uz": "🍳 Tayyorlanmoqda", "ru": "🍳 Готовится"},
+            "delivering": {"uz": "🚚 Yetkazilmoqda", "ru": "🚚 Доставляется"},
+            "completed": {"uz": "✅ Yakunlangan", "ru": "✅ Завершён"},
+            "cancelled": {"uz": "❌ Bekor qilingan", "ru": "❌ Отменён"},
+        }
+
+        # Har bir orderni alohida chiqazish
+        for order in orders:
+            status = order.get("status", "new")
+            total = order.get("total_price", 0)
+            created_at = order.get("created_at", "").replace("T", " ")[:19]
+
+            status_label = status_texts.get(status, status_texts["new"]).get(language)
+
+            if language == "ru":
+                text = (
+                    f"📋 <b>Заказ №{order['id']}</b>\n"
+                    f"📅 Дата: {created_at}\n"
+                    f"💰 Сумма: {total} сум\n"
+                    f"📦 Статус: {status_label}"
+                )
+            else:
+                text = (
+                    f"📋 <b>Buyurtma №{order['id']}</b>\n"
+                    f"📅 Sana: {created_at}\n"
+                    f"💰 Jami: {total} so‘m\n"
+                    f"📦 Holat: {status_label}"
+                )
+
+            await message.answer(text, parse_mode="HTML")
+
+        # Oxirida menyuga qaytish tugmasi
+        back_texts = {
+            "uz": "🔙 Bosh menyu",
+            "ru": "🔙 Главное меню"
+        }
+        await message.answer(back_texts.get(language, back_texts["uz"]), reply_markup=menu(language))
+
     except Exception as e:
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
