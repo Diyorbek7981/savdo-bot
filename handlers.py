@@ -795,8 +795,14 @@ async def quantity_entered(message: Message, state: FSMContext):
                     "uz": f"✅ {quantity} ta '{product['name']}' mahsuloti savatga qo‘shildi!",
                     "ru": f"✅ {quantity} шт. товара '{product['name']}' добавлено в корзину!"
                 }
+                again_order_texts = {
+                    "uz": "🛒 Yana biror narsa buyurtma qilmoqchimisiz?",
+                    "ru": "🛒 Хотите заказать что-то ещё?"
+                }
                 txt = messages.get(language, messages['uz'])
-                await message.answer(txt, reply_markup=cat_inline(catgs))
+                tgg = again_order_texts.get(language, messages['uz'])
+                await message.answer(txt, reply_markup=comp_ord(language))
+                await message.answer(tgg, reply_markup=cat_inline(catgs))
             else:
                 return f"⚠️Error in the request: {order_item_creat.status_code} | {order_item_creat.text}"
 
