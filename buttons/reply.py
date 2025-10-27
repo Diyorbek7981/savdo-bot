@@ -143,6 +143,7 @@ def comp_ord(language: str):
                 KeyboardButton(text=text)
             ],
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
+        one_time_keyboard=False
     )
     return ord

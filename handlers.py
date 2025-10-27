@@ -714,11 +714,11 @@ async def ask_quantity(callback: CallbackQuery, state: FSMContext):
         else:
             await state.update_data(product_id=product_id)
             messages = {
-                "uz": "✏️ Qancha hohlaysiz? (raqam kiriting)",
-                "ru": "✏️ Сколько хотите? (введите число)"
+                "uz": "\n\n🖊️ ✨  <b><i>Qancha hohlaysiz?</i></b>\n\n<b><i>(Raqam kiriting)</i></b>\n\n",
+                "ru": "\n\n🖊️ ✨  <b><i>Сколько хотите?</i></b>\n\n<b><i>(введите число)</i></b>\n\n"
             }
             caption = messages.get(language, "Unknown language ❌")
-            await callback.message.answer(caption, reply_markup=comp_ord(language))
+            await callback.message.answer(caption, reply_markup=comp_ord(language), parse_mode="HTML")
             await state.set_state(OrderStates.quantity)
     except Exception as e:
         await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
