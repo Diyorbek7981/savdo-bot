@@ -1,7 +1,7 @@
 from aiogram import F, Router, Bot, types
 from aiogram.types import Message
 from aiogram.types import CallbackQuery
-from buttons.inline import language_button, cat_inline, prod_inline, order_inline
+from buttons.inline import language_button, cat_inline, prod_inline, order_inline, back_inline
 from buttons.reply import get_menu, get_phone, check, menu, comp_ord, check_after_reg
 import requests
 from config import API, ADMIN
@@ -306,7 +306,7 @@ async def state_name(message: Message, state: FSMContext):
 async def state_age(message: Message, state: FSMContext):
     res = requests.get(f"{API}/users/{message.from_user.id}").json()
     language = res["language"]
-    if message.text.isdigit() and 4 < int(message.text) < 50:
+    if message.text.isdigit():
         await state.update_data(age=message.text)
         accepted_message = {
             "uz": "✅ Qabul qilindi",
@@ -474,7 +474,7 @@ async def register_button_handler(message: Message, state: FSMContext):
         req = response.json()
         language = req.get("language", "uz")
 
-        catgs = requests.get(f"{API}/cat_list/").json()
+        catgs = requests.get(f"{API}/{language}/cat_list/").json()
 
         if req["is_registered"] == False:
             full_name_prompt = {
@@ -556,7 +556,7 @@ async def category_selected(callback: CallbackQuery, state):
 
         category_id = int(callback.data.split("_")[1])
 
-        product_response = requests.get(f"{API}/prod_categ/{category_id}/")
+        product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
 
         if product_response.status_code != 200:
             messages = {
@@ -614,7 +614,7 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
             await state.set_state(SignupStates.name)
             return
 
-        res = requests.get(f"{API}/products/{product_id}/")
+        res = requests.get(f"{API}/{language}/products/{product_id}/")
         if res.status_code != 200:
             await callback.answer("❌ Mahsulot topilmadi", show_alert=True)
             return
@@ -625,12 +625,14 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
             "uz": (
                 f"<b>{product['name']}</b>\n"
                 f"💰 Narxi: {product['price']} so‘m / {product['unit']}\n\n"
+                f"📝 Maxsulot haqida: {product['description']}"
                 f"📂 Kategoriya: {product['category_name']}\n"
                 f"📦 Holati: {'Mavjud ✅' if product['available'] else 'Mavjud emas ❌'}"
             ),
             "ru": (
                 f"<b>{product['name']}</b>\n"
                 f"💰 Цена: {product['price']} сом / {product['unit']}\n\n"
+                f"📝 Описание товара: {product['description']}"
                 f"📂 Категория: {product['category_name']}\n"
                 f"📦 Наличие: {'В наличии ✅' if product['available'] else 'Нет в наличии ❌'}"
             )
@@ -726,12 +728,33 @@ async def quantity_entered(message: Message, state: FSMContext):
 
         user_data = requests.get(f"{API}/users/{message.from_user.id}").json()
         user_order = requests.get(url=f"{API}/user_orders/{user_data['id']}").json()
-        product = requests.get(f"{API}/products/{product_id}").json()
-        catgs = requests.get(f"{API}/cat_list/").json()
         language = user_data.get("language", "uz")
+        product = requests.get(f"{API}/{language}/products/{product_id}").json()
+        catgs = requests.get(f"{API}/{language}/cat_list/").json()
+
+        try:
+            product_quantity = Decimal(str(product.get("quantity") or "0"))
+        except (TypeError, ValueError):
+            product_quantity = Decimal("0")
+
+        if quantity > product_quantity:
+            messages = {
+                "uz": (
+                    f"❌ Omborda faqat {product_quantity} {product.get('unit', 'ta')} "
+                    f"'{product['name']}' mahsuloti mavjud.\n\n"
+                    f"❗ To‘g‘ri miqdor kiriting yoki ⬅️ Orqaga tugmasini bosing."
+                ),
+                "ru": (
+                    f"❌ На складе осталось только {product_quantity} {product.get('unit', 'шт')} "
+                    f"товара '{product['name']}'.\n\n"
+                    f"❗ Введите правильное количество или нажмите ⬅️ Назад."
+                )
+            }
+            await message.answer(messages.get(language, messages['uz']),
+                                 reply_markup=back_inline(language, product['category']))
+            return
 
         existing_item = next((item for item in user_order["items"] if item["product"] == product_id), None)
-
         if existing_item:
             item_id = existing_item["id"]
             new_quantity = Decimal(existing_item["quantity"]) + Decimal(str(quantity))
@@ -776,9 +799,13 @@ async def quantity_entered(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("back_"))
-async def back_handler(callback: CallbackQuery):
+async def back_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     try:
+        current_state = await state.get_state()
+        if current_state is not None:
+            await state.clear()
+
         response = requests.get(f"{API}/users/{callback.from_user.id}")
         if response.status_code != 200:
             await callback.message.answer("Tilni tanlang 🇺🇿| Выберите язык 🇷🇺", reply_markup=language_button)
@@ -790,7 +817,7 @@ async def back_handler(callback: CallbackQuery):
         data = callback.data.split("_")
 
         if data[1] == "cat":
-            catgs = requests.get(f"{API}/cat_list/").json()
+            catgs = requests.get(f"{API}/{language}/cat_list/").json()
             msg = {
                 "uz": "📦 Kategoriyalar ro‘yxati:",
                 "ru": "📦 Список категорий:"
@@ -802,7 +829,7 @@ async def back_handler(callback: CallbackQuery):
 
         elif data[1] == "prod":
             category_id = int(data[2])
-            product_response = requests.get(f"{API}/prod_categ/{category_id}/")
+            product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
             if product_response.status_code != 200:
                 messages = {
                     "uz": "❌ Mahsulotlar topilmadi",
@@ -893,7 +920,7 @@ async def address_entered(message: Message, state: FSMContext):
         address = message.text.strip()
         await state.update_data(address=address)
 
-        order = requests.get(f"{API}/user_orders/{user['id']}/").json()
+        order = requests.get(f"{API}/{language}/user_orders/{user['id']}/").json()
         items = order.get("items", [])
 
         grouped_items = {}
