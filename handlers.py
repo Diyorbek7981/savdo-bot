@@ -50,7 +50,8 @@ async def start(message: Message, state: FSMContext):
             "ru": "💼 Ознакомьтесь с нашими услугами\n\n💬 Для помощи используйте: /help"
         }
         txt = services_text.get(language, services_text["uz"])
-        await message.answer(f"🌟 {message.from_user.full_name} {txt}", reply_markup=menu(language))
+        await message.answer(f"🌟 {message.from_user.full_name} {txt}",
+                             reply_markup=menu(language))
     except Exception as e:
         await message.answer(f"⚠️ So‘rovda xatolik: {e}")
 
@@ -1143,3 +1144,66 @@ async def show_order_status(message: Message):
 
     except Exception as e:
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
+
+
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+from aiogram.utils.markdown import hbold
+
+
+@router.message(F.text.in_(["📊 Reyting", "📊 Рейтинг"]))
+async def send_top_customers(message: types.Message):
+    try:
+        # Foydalanuvchi tilini olish
+        user_res = requests.get(f"{API}/users/{message.from_user.id}")
+        if user_res.status_code != 200:
+            await message.answer("⚠️ Server bilan aloqa o‘rnatib bo‘lmadi.")
+            return
+        user = user_res.json()
+        language = user.get("language", "uz")
+
+        # Top mijozlar ro'yxatini olish
+        response = requests.get(f"{API}/top_monthly_customers/")
+        if response.status_code != 200:
+            msg = {
+                "uz": "⚠️ Server bilan aloqa o‘rnatib bo‘lmadi.",
+                "ru": "⚠️ Не удалось соединиться с сервером."
+            }
+            await message.answer(msg.get(language, msg["uz"]))
+            return
+
+        data = response.json()
+        if not data:
+            msg = {
+                "uz": "📭 Bu oyda hech kim buyurtma qilmagan.",
+                "ru": "📭 В этом месяце никто не совершил заказ."
+            }
+            await message.answer(msg.get(language, msg["uz"]))
+            return
+
+        # Xabar matnini tilga qarab tayyorlash
+        if language == "ru":
+            text = "📊 <b>В этом месяце клиенты с наибольшими покупками:</b>\n\n"
+            for i, u in enumerate(data, start=1):
+                text += (
+                    f"{i}. {hbold(u.get('first_name') or 'Неизвестно')} "
+                    f"(@{u.get('username')})\n"
+                    f"📞 {u.get('phone_number')}\n"
+                    f"💰 Общие расходы: {u.get('total_spent_this_month'):,} сум\n"
+                    f"🛍 Кол-во заказов: {u.get('total_orders_this_month')}\n\n"
+                )
+        else:  # default uz
+            text = "📊 <b>Bu oyda eng ko‘p xarid qilgan mijozlar:</b>\n\n"
+            for i, u in enumerate(data, start=1):
+                text += (
+                    f"{i}. {hbold(u.get('first_name') or 'Noma’lum')} "
+                    f"(@{u.get('username')})\n"
+                    f"📞 {u.get('phone_number')}\n"
+                    f"💰 Umumiy xarid: {u.get('total_spent_this_month'):,} so‘m\n"
+                    f"🛍 Buyurtmalar soni: {u.get('total_orders_this_month')}\n\n"
+                )
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Xatolik yuz berdi:\n{e}")

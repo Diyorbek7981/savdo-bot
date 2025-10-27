@@ -1,4 +1,5 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from config import ADMIN
 
 translations = {
     "uz": "📝 Ro'yhatdan o'tish",
@@ -99,24 +100,29 @@ orders_status_text = {
     "ru": "📦 Статус моих заказов"
 }
 
+rating_text = {
+    "uz": "📊 Reyting",
+    "ru": "📊 Рейтинг"
+}
+
 
 def menu(language: str):
+    # mavjud matnlar
     text = messages.get(language, messages["uz"])
     tet = change_language_text.get(language, change_language_text["uz"])
     txt = orders_status_text.get(language, orders_status_text["uz"])
+    tgt = rating_text.get(language, rating_text["uz"])
 
+    # menyu tugmalari
+    buttons = [
+        [KeyboardButton(text=text)],
+        [KeyboardButton(text=tet)],
+        [KeyboardButton(text=txt)],
+        [KeyboardButton(text="📊 Reyting")]
+    ]
+    # klaviatura shakllantirish
     phone = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text=text)
-            ],
-            [
-                KeyboardButton(text=tet)
-            ],
-            [
-                KeyboardButton(text=txt)
-            ],
-        ],
+        keyboard=buttons,
         resize_keyboard=True
     )
     return phone
