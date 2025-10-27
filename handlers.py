@@ -779,8 +779,14 @@ async def quantity_entered(message: Message, state: FSMContext):
                     "uz": f"✅ {quantity} ta '{product['name']}' mahsuloti savatga qo‘shildi!",
                     "ru": f"✅ {quantity} шт. товара '{product['name']}' добавлено в корзину!"
                 }
+                again_order_texts = {
+                    "uz": "🛒 Yana biror narsa buyurtma qilmoqchimisiz?",
+                    "ru": "🛒 Хотите заказать что-то ещё?"
+                }
                 txt = messages.get(language, messages['uz'])
-                await message.answer(txt, reply_markup=cat_inline(catgs))
+                tgg = again_order_texts.get(language, messages['uz'])
+                await message.answer(txt, reply_markup=comp_ord(language))
+                await message.answer(tgg, reply_markup=cat_inline(catgs))
             else:
                 return f"⚠️Error in the request: {update_or_it.status_code} | {update_or_it.text}"
         else:
@@ -1068,8 +1074,8 @@ async def confirm_order_state(message: Message, state: FSMContext):
                 ADMIN, admin_text, parse_mode="HTML", disable_web_page_preview=True
             )
             orders_info_text = {
-                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz qaysi jarayonda ekanligini bilish uchun pastdagi 📦 Buyurtmalarim holati tugmasini bosing",
-                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте, на каком этапе ваш заказ:📦 Статус моих заказов"
+                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz qaysi jarayonda ekanligini bilish uchun pastdagi\n📦 Buyurtmalarim holati tugmasini bosing",
+                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте, на каком этапе ваш заказ:\n📦 Статус моих заказов"
             }
 
             await message.answer(user_text, reply_markup=menu(language))
