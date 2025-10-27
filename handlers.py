@@ -1156,11 +1156,11 @@ async def show_order_status(message: Message):
 
         # Har bir orderni alohida chiqazish
         for order in orders:
-            status = order.get("status", "new")
+            status = order.get("status", "preparing")
             total = order.get("total_price", 0)
             created_at = order.get("created_at", "").replace("T", " ")[:19]
 
-            status_label = status_texts.get(status, status_texts["new"]).get(language)
+            status_label = status_texts.get(status, status_texts["preparing"]).get(language)
 
             if language == "ru":
                 text = (
