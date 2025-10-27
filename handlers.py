@@ -474,8 +474,10 @@ async def register_button_handler(message: Message, state: FSMContext):
 
         req = response.json()
         language = req.get("language", "uz")
-
-        catgs = requests.get(f"{API}/{language}/cat_list/").json()
+        if language == "ru":
+            catgs = requests.get(f"{API}/{language}/cat_list/").json()
+        else:
+            catgs = requests.get(f"{API}/cat_list/").json()
 
         if req["is_registered"] == False:
             full_name_prompt = {
@@ -556,8 +558,10 @@ async def category_selected(callback: CallbackQuery, state):
             return
 
         category_id = int(callback.data.split("_")[1])
-
-        product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
+        if language == "ru":
+            product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
+        else:
+            product_response = requests.get(f"{API}/prod_categ/{category_id}/")
 
         if product_response.status_code != 200:
             messages = {
@@ -614,8 +618,11 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
             await callback.message.answer(text=txt, reply_markup=ReplyKeyboardRemove())
             await state.set_state(SignupStates.name)
             return
+        if language == "ru":
+            res = requests.get(f"{API}/{language}/products/{product_id}/")
+        else:
+            res = requests.get(f"{API}/products/{product_id}/")
 
-        res = requests.get(f"{API}/{language}/products/{product_id}/")
         if res.status_code != 200:
             await callback.answer("❌ Mahsulot topilmadi", show_alert=True)
             return
@@ -730,8 +737,12 @@ async def quantity_entered(message: Message, state: FSMContext):
         user_data = requests.get(f"{API}/users/{message.from_user.id}").json()
         user_order = requests.get(url=f"{API}/user_orders/{user_data['id']}").json()
         language = user_data.get("language", "uz")
-        product = requests.get(f"{API}/{language}/products/{product_id}").json()
-        catgs = requests.get(f"{API}/{language}/cat_list/").json()
+        if language == "ru":
+            product = requests.get(f"{API}/{language}/products/{product_id}").json()
+            catgs = requests.get(f"{API}/{language}/cat_list/").json()
+        else:
+            catgs = requests.get(f"{API}/cat_list/").json()
+            product = requests.get(f"{API}/products/{product_id}").json()
 
         try:
             product_quantity = Decimal(str(product.get("quantity") or "0"))
@@ -818,7 +829,10 @@ async def back_handler(callback: CallbackQuery, state: FSMContext):
         data = callback.data.split("_")
 
         if data[1] == "cat":
-            catgs = requests.get(f"{API}/{language}/cat_list/").json()
+            if language == "ru":
+                catgs = requests.get(f"{API}/{language}/cat_list/").json()
+            else:
+                catgs = requests.get(f"{API}/cat_list/").json()
             msg = {
                 "uz": "📦 Kategoriyalar ro‘yxati:",
                 "ru": "📦 Список категорий:"
@@ -830,7 +844,11 @@ async def back_handler(callback: CallbackQuery, state: FSMContext):
 
         elif data[1] == "prod":
             category_id = int(data[2])
-            product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
+
+            if language == "ru":
+                product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
+            else:
+                product_response = requests.get(f"{API}/prod_categ/{category_id}/")
             if product_response.status_code != 200:
                 messages = {
                     "uz": "❌ Mahsulotlar topilmadi",
@@ -921,7 +939,10 @@ async def address_entered(message: Message, state: FSMContext):
         address = message.text.strip()
         await state.update_data(address=address)
 
-        order = requests.get(f"{API}/{language}/user_orders/{user['id']}/").json()
+        if language == "ru":
+            order = requests.get(f"{API}/{language}/user_orders/{user['id']}/").json()
+        else:
+            order = requests.get(f"{API}/user_orders/{user['id']}/").json()
         items = order.get("items", [])
 
         grouped_items = {}
@@ -1154,15 +1175,14 @@ from aiogram.utils.markdown import hbold
 @router.message(F.text.in_(["📊 Reyting", "📊 Рейтинг"]))
 async def send_top_customers(message: types.Message):
     try:
-        # Foydalanuvchi tilini olish
         user_res = requests.get(f"{API}/users/{message.from_user.id}")
         if user_res.status_code != 200:
             await message.answer("⚠️ Server bilan aloqa o‘rnatib bo‘lmadi.")
             return
+
         user = user_res.json()
         language = user.get("language", "uz")
 
-        # Top mijozlar ro'yxatini olish
         response = requests.get(f"{API}/top_monthly_customers/")
         if response.status_code != 200:
             msg = {
@@ -1173,7 +1193,9 @@ async def send_top_customers(message: types.Message):
             return
 
         data = response.json()
-        if not data:
+
+        # Agar data list emas yoki bo‘sh bo‘lsa
+        if not data or not isinstance(data, list):
             msg = {
                 "uz": "📭 Bu oyda hech kim buyurtma qilmagan.",
                 "ru": "📭 В этом месяце никто не совершил заказ."
@@ -1181,10 +1203,15 @@ async def send_top_customers(message: types.Message):
             await message.answer(msg.get(language, msg["uz"]))
             return
 
-        # Xabar matnini tilga qarab tayyorlash
         if language == "ru":
             text = "📊 <b>В этом месяце клиенты с наибольшими покупками:</b>\n\n"
-            for i, u in enumerate(data, start=1):
+        else:
+            text = "📊 <b>Bu oyda eng ko‘p xarid qilgan mijozlar:</b>\n\n"
+
+        for i, u in enumerate(data, start=1):
+            if not isinstance(u, dict):
+                continue
+            if language == "ru":
                 text += (
                     f"{i}. {hbold(u.get('first_name') or 'Неизвестно')} "
                     f"(@{u.get('username')})\n"
@@ -1192,9 +1219,7 @@ async def send_top_customers(message: types.Message):
                     f"💰 Общие расходы: {u.get('total_spent_this_month'):,} сум\n"
                     f"🛍 Кол-во заказов: {u.get('total_orders_this_month')}\n\n"
                 )
-        else:  # default uz
-            text = "📊 <b>Bu oyda eng ko‘p xarid qilgan mijozlar:</b>\n\n"
-            for i, u in enumerate(data, start=1):
+            else:
                 text += (
                     f"{i}. {hbold(u.get('first_name') or 'Noma’lum')} "
                     f"(@{u.get('username')})\n"
@@ -1203,7 +1228,14 @@ async def send_top_customers(message: types.Message):
                     f"🛍 Buyurtmalar soni: {u.get('total_orders_this_month')}\n\n"
                 )
 
-        await message.answer(text, parse_mode="HTML")
+        if text.strip():
+            await message.answer(text, parse_mode="HTML")
+        else:
+            msg = {
+                "uz": "📭 Bu oyda hech kim buyurtma qilmagan.",
+                "ru": "📭 В этом месяце никто не совершил заказ."
+            }
+            await message.answer(msg.get(language, msg["uz"]))
 
     except Exception as e:
         await message.answer(f"❌ Xatolik yuz berdi:\n{e}")
