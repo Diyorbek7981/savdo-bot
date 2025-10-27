@@ -633,14 +633,14 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
             "uz": (
                 f"<b>{product['name']}</b>\n"
                 f"💰 Narxi: {product['price']} so‘m / {product['unit']}\n\n"
-                f"📝 Maxsulot haqida: {product['description']}"
+                f"📝 Maxsulot haqida: {product['description']}\n"
                 f"📂 Kategoriya: {product['category_name']}\n"
                 f"📦 Holati: {'Mavjud ✅' if product['available'] else 'Mavjud emas ❌'}"
             ),
             "ru": (
                 f"<b>{product['name']}</b>\n"
                 f"💰 Цена: {product['price']} сом / {product['unit']}\n\n"
-                f"📝 Описание товара: {product['description']}"
+                f"📝 Описание товара: {product['description']}\n"
                 f"📂 Категория: {product['category_name']}\n"
                 f"📦 Наличие: {'В наличии ✅' if product['available'] else 'Нет в наличии ❌'}"
             )
@@ -1062,8 +1062,8 @@ async def confirm_order_state(message: Message, state: FSMContext):
                 ADMIN, admin_text, parse_mode="HTML", disable_web_page_preview=True
             )
             orders_info_text = {
-                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz qaysi jarayonda ekanligini bilish: Buyurtmalarim holati",
-                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте, на каком этапе ваш заказ: Статус моих заказов"
+                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz qaysi jarayonda ekanligini bilish uchun pastdagi 📦 Buyurtmalarim holati tugmasini bosing",
+                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте, на каком этапе ваш заказ:📦 Статус моих заказов"
             }
 
             await message.answer(user_text, reply_markup=menu(language))
@@ -1124,11 +1124,22 @@ async def show_order_status(message: Message):
 
         # Holatlarni tarjimalari
         status_texts = {
-            "new": {"uz": "🆕 Yangi", "ru": "🆕 Новый"},
-            "preparing": {"uz": "🍳 Tayyorlanmoqda", "ru": "🍳 Готовится"},
-            "delivering": {"uz": "🚚 Yetkazilmoqda", "ru": "🚚 Доставляется"},
-            "completed": {"uz": "✅ Yakunlangan", "ru": "✅ Завершён"},
-            "cancelled": {"uz": "❌ Bekor qilingan", "ru": "❌ Отменён"},
+            "preparing": {
+                "uz": "🍳 Buyurtmangiz kutilmoqda",
+                "ru": "🍳 Ваш заказ ожидается"
+            },
+            "delivering": {
+                "uz": "🚚 Buyurtmangiz qabul qilindi",
+                "ru": "🚚 Ваш заказ принят"
+            },
+            "completed": {
+                "uz": "✅ Yakunlangan",
+                "ru": "✅ Завершён"
+            },
+            "cancelled": {
+                "uz": "❌ Bekor qilingan",
+                "ru": "❌ Отменён"
+            }
         }
 
         # Har bir orderni alohida chiqazish
