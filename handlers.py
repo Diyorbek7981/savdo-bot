@@ -1,7 +1,7 @@
 from aiogram import F, Router, Bot, types
 from aiogram.types import Message
 from aiogram.types import CallbackQuery
-from buttons.inline import language_button, cat_inline, prod_inline, order_inline, back_inline
+from buttons.inline import language_button, cat_inline, prod_inline, order_inline, back_inline, prod_name_inline
 from buttons.reply import get_menu, get_phone, check, menu, comp_ord, check_after_reg
 import requests
 from config import API, ADMIN
@@ -12,6 +12,8 @@ from decimal import Decimal
 import json
 from aiogram.filters import Command, CommandStart
 from aiogram.enums import ParseMode
+from chekpdf import generate_order_receipt
+import tempfile
 
 router = Router()
 
@@ -534,6 +536,7 @@ async def register_button_handler(message: Message, state: FSMContext):
         await message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
 
 
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 @router.callback_query(F.data.startswith("cat_"))
 async def category_selected(callback: CallbackQuery, state):
     await callback.message.delete()
@@ -559,9 +562,9 @@ async def category_selected(callback: CallbackQuery, state):
 
         category_id = int(callback.data.split("_")[1])
         if language == "ru":
-            product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
+            product_response = requests.get(f"{API}/{language}/category_to_name/{category_id}/")
         else:
-            product_response = requests.get(f"{API}/prod_categ/{category_id}/")
+            product_response = requests.get(f"{API}/category_to_name/{category_id}/")
 
         if product_response.status_code != 200:
             messages = {
@@ -582,12 +585,69 @@ async def category_selected(callback: CallbackQuery, state):
             return
 
         messages = {
-            "uz": f"📦 {len(products)} ta mahsulot topildi:",
+            "uz": f"📦 {len(products)} ta kategoriya topildi:",
             "ru": f"📦 Найдено {len(products)} товаров:"
         }
         await callback.message.answer(
             text=messages.get(language, messages["uz"]),
-            reply_markup=prod_inline(products, language, category_id)
+            reply_markup=prod_name_inline(products, language, category_id)
+        )
+
+    except Exception as e:
+        await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}")
+
+
+@router.callback_query(F.data.startswith("namecat_"))
+async def name_category_selected(callback: CallbackQuery, state: FSMContext):
+    await callback.message.delete()
+    try:
+        response = requests.get(f"{API}/users/{callback.from_user.id}")
+        if response.status_code != 200:
+            text = "Tilni tanlang 🇺🇿| Выберите язык 🇷🇺"
+            await callback.message.answer(text, reply_markup=language_button)
+            return
+
+        req = response.json()
+        language = req.get("language", "uz")
+
+        if not req.get("is_registered", False):
+            full_name_prompt = {
+                "uz": "👤 To‘liq ismingizni kiriting (F.I.Sh):",
+                "ru": "👤 Введите ваше полное имя (Ф.И.О):"
+            }
+            txt = full_name_prompt.get(language, "Unknown language ❌")
+            await callback.message.answer(text=txt, reply_markup=ReplyKeyboardRemove())
+            await state.set_state(SignupStates.name)
+            return
+
+        name_category_id = int(callback.data.split("_")[1])
+
+        if language == "ru":
+            product_response = requests.get(f"{API}/{language}/namecat_to_product/{name_category_id}/")
+        else:
+            product_response = requests.get(f"{API}/namecat_to_product/{name_category_id}/")
+
+        if product_response.status_code != 200:
+            await callback.answer("❌ Server javobi noto‘g‘ri", show_alert=True)
+            return
+
+        try:
+            products = product_response.json()
+        except Exception as e:
+            await callback.answer(f"⚠️ JSON o‘qishda xatolik: {e}", show_alert=True)
+            return
+
+        if not isinstance(products, list) or len(products) == 0:
+            await callback.answer("❌ Bu turdagi mahsulot hozircha mavjud emas", show_alert=True)
+            return
+
+        messages = {
+            "uz": f"🛍 {len(products)} ta mahsulot topildi:",
+            "ru": f"🛍 Найдено {len(products)} товаров:"
+        }
+        await callback.message.answer(
+            text=messages.get(language, messages["uz"]),
+            reply_markup=prod_inline(products, language, name_category_id)
         )
 
     except Exception as e:
@@ -634,14 +694,14 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
                 f"<b>{product['name']}</b>\n"
                 f"💰 Narxi: {product['price']} so‘m / {product['unit']}\n\n"
                 f"📝 Maxsulot haqida: {product['description']}\n"
-                f"📂 Kategoriya: {product['category_name']}\n"
+                f"📂 Kategoriya: {product['category']}\n"
                 f"📦 Holati: {'Mavjud ✅' if product['available'] else 'Mavjud emas ❌'}"
             ),
             "ru": (
                 f"<b>{product['name']}</b>\n"
                 f"💰 Цена: {product['price']} сом / {product['unit']}\n\n"
                 f"📝 Описание товара: {product['description']}\n"
-                f"📂 Категория: {product['category_name']}\n"
+                f"📂 Категория: {product['category']}\n"
                 f"📦 Наличие: {'В наличии ✅' if product['available'] else 'Нет в наличии ❌'}"
             )
         }
@@ -652,13 +712,13 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
                 photo=types.FSInputFile(product['photo']),
                 caption=caption,
                 parse_mode=ParseMode.HTML,
-                reply_markup=order_inline(product_id, language, product['category'])
+                reply_markup=order_inline(product_id, language, product['name_category'])
             )
         else:
             await callback.message.answer(
                 text=caption,
                 parse_mode=ParseMode.HTML,
-                reply_markup=order_inline(product_id, language, product['category'])
+                reply_markup=order_inline(product_id, language, product['name_category'])
             )
     except Exception as e:
         await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
@@ -845,6 +905,7 @@ async def back_handler(callback: CallbackQuery, state: FSMContext):
                 catgs = requests.get(f"{API}/{language}/cat_list/").json()
             else:
                 catgs = requests.get(f"{API}/cat_list/").json()
+
             msg = {
                 "uz": "📦 Kategoriyalar ro‘yxati:",
                 "ru": "📦 Список категорий:"
@@ -854,37 +915,36 @@ async def back_handler(callback: CallbackQuery, state: FSMContext):
                 reply_markup=cat_inline(catgs)
             )
 
-        elif data[1] == "prod":
+        elif data[1] == "namecat":
             category_id = int(data[2])
-
             if language == "ru":
-                product_response = requests.get(f"{API}/{language}/prod_categ/{category_id}/")
+                namecats = requests.get(f"{API}/{language}/category_to_name/{category_id}/").json()
             else:
-                product_response = requests.get(f"{API}/prod_categ/{category_id}/")
-            if product_response.status_code != 200:
-                messages = {
-                    "uz": "❌ Mahsulotlar topilmadi",
-                    "ru": "❌ Товары не найдены"
-                }
-                await callback.answer(messages.get(language, messages["uz"]), show_alert=True)
-                return
+                namecats = requests.get(f"{API}/category_to_name/{category_id}/").json()
 
-            products = product_response.json()
-            if not products:
-                messages = {
-                    "uz": "❌ Bu kategoriyada mahsulot yo‘q",
-                    "ru": "❌ В этой категории нет товаров"
-                }
-                await callback.answer(messages.get(language, messages["uz"]), show_alert=True)
-                return
-
-            messages = {
-                "uz": f"📦 {len(products)} ta mahsulot topildi:",
-                "ru": f"📦 Найдено {len(products)} товаров:"
+            msg = {
+                "uz": "📂 Nom kategoriyalar ro‘yxati:",
+                "ru": "📂 Список подкатегорий:"
             }
             await callback.message.answer(
-                text=messages.get(language, messages["uz"]),
-                reply_markup=prod_inline(products, language, category_id)
+                text=msg.get(language, msg["uz"]),
+                reply_markup=prod_name_inline(namecats, language, category_id)
+            )
+
+        elif data[1] == "prod":
+            name_category_id = int(data[2])
+            if language == "ru":
+                products = requests.get(f"{API}/{language}/namecat_to_product/{name_category_id}/").json()
+            else:
+                products = requests.get(f"{API}/namecat_to_product/{name_category_id}/").json()
+
+            msg = {
+                "uz": "🛍 Mahsulotlar ro‘yxati:",
+                "ru": "🛍 Список товаров:"
+            }
+            await callback.message.answer(
+                text=msg.get(language, msg["uz"]),
+                reply_markup=prod_inline(products, language, name_category_id)
             )
 
         else:
@@ -1019,24 +1079,6 @@ async def confirm_order_state(message: Message, state: FSMContext):
             data = await state.get_data()
             address = data.get("address", "Manzil kiritilmagan")
 
-            grouped_items = {}
-            for item in items:
-                category = item["category_name"]
-                grouped_items.setdefault(category, []).append(item)
-
-            receipt_lines = []
-            for category, products in grouped_items.items():
-                receipt_lines.append(f"📦 *{category}*")
-                for item in products:
-                    name = item["product_name"]
-                    qty = float(item["quantity"])
-                    price = float(item["product_price"])
-                    total = float(item["total_price"])
-                    receipt_lines.append(f"• {name} — {qty} x {price:.2f} = {total:.2f}")
-                receipt_lines.append("")
-
-            items_text = "\n".join(receipt_lines)
-
             try:
                 update = requests.patch(
                     f"{API}/user_order_update/{user['id']}/",
@@ -1049,53 +1091,56 @@ async def confirm_order_state(message: Message, state: FSMContext):
                 await message.answer(f"⚠️ Xatolik yuz berdi (update): {e}", reply_markup=menu(language))
                 return
 
-            admin_text = (
-                f"📩 *Yangi buyurtma*\n\n"
-                f"{items_text}\n"
-                f"💰 *Jami:* {order['total_price']} so‘m\n"
-                f"📍 Manzil: {address}\n\n"
-                f"👤 Foydalanuvchi: {user.get('first_name', '')} (@{user.get('user_name', '')})\n"
-                f"📞 Telefon: {user.get('phone_number', '❌ Telefon yo‘q')}"
-            )
+            pdf_buffer = generate_order_receipt(order, user, address)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(pdf_buffer.getvalue())
+                tmp_path = tmp.name
+
+            pdf_file = types.FSInputFile(tmp_path)
 
             admin = requests.get(f"{API}/users/{ADMIN}").json()
+
             if language == "ru":
                 user_text = (
                     f"✅ Ваши данные были отправлены администратору!\n"
-                    f"📩 Связаться с администратором: [@{admin['user_name']}](https://t.me/{admin['user_name']})\n\n"
+                    f"📩 Связаться с администратором: [@{admin['user_name']}](https://t.me/{admin['user_name']})"
                 )
             else:
                 user_text = (
                     f"✅ Ma’lumotlaringiz adminga yuborildi!\n"
-                    f"📩 Admin bilan bog‘lanish: [@{admin['user_name']}](https://t.me/{admin['user_name']})\n\n"
+                    f"📩 Admin bilan bog‘lanish: [@{admin['user_name']}](https://t.me/{admin['user_name']})"
                 )
 
-            await message.bot.send_message(
-                ADMIN, admin_text, parse_mode="HTML", disable_web_page_preview=True
+            await message.bot.send_document(
+                ADMIN,
+                document=pdf_file,
+                caption=f"📦 Yangi buyurtma ({user.get('first_name', '')})"
             )
+
             orders_info_text = {
-                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz qaysi jarayonda ekanligini bilish uchun pastdagi\n📦 Buyurtmalarim holati tugmasini bosing",
-                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте, на каком этапе ваш заказ:\n📦 Статус моих заказов"
+                "uz": "🔁 Qayta buyurtma bermoqchimisiz?\n\n📦 Buyurtmangiz holatini bilish uchun\n 📦 Buyurtmalarim holati tugmasini bosing.",
+                "ru": "🔁 Хотите сделать новый заказ?\n\n📦 Узнайте статус вашего заказа: 📦 Статус моих заказов"
             }
 
-            await message.answer(user_text, reply_markup=menu(language))
+            await message.answer(user_text, reply_markup=menu(language), parse_mode="HTML")
             await message.answer(orders_info_text.get(language, orders_info_text["uz"]))
             await state.clear()
+
         else:
             txt = {
                 "uz": (
-                    "✔️ Ma'lumotlarni tasdiqlash: Tasdiqlash\n"
+                    "✔️ Ma'lumotlarni tasdiqlash uchun 'Tasdiqlash' tugmasini bosing\n"
                     "🗑 Jarayonni bekor qilish: /stop\n"
                     "🔄 Jarayonni boshidan boshlash: /start"
                 ),
                 "ru": (
-                    "✔️ Подтвердить информацию: Подтвердить\n"
+                    "✔️ Подтвердите информацию: Подтвердить\n"
                     "🗑 Отменить процесс: /stop\n"
-                    "🔄 Начать процесс заново: /start"
+                    "🔄 Начать заново: /start"
                 )
             }
-            text = txt.get(language, txt["uz"])
-            await message.answer(text, reply_markup=check_after_reg(language))
+            await message.answer(txt.get(language, txt["uz"]), reply_markup=check_after_reg(language))
+
     except Exception as e:
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
 
