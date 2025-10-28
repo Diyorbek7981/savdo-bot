@@ -1114,7 +1114,7 @@ async def confirm_order_state(message: Message, state: FSMContext):
             await message.bot.send_document(
                 ADMIN,
                 document=pdf_file,
-                caption=f"📦 Yangi buyurtma ({user.get('first_name', '')})"
+                caption=f"📦 Yangi buyurtma ({user.get('first_name', '')})\nBuyutrma raqami: No{order.get('id', '')}"
             )
 
             orders_info_text = {

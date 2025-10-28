@@ -4,15 +4,12 @@ from io import BytesIO
 
 
 def generate_order_receipt(order, user, address):
-    """
-    Buyurtma uchun PDF chek generatsiya qiladi
-    """
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A5)
     width, height = A5
 
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(180, height - 50, "🧾 BUYURTMA CHEKI")
+    c.drawString(180, height - 50, f"🧾 BUYURTMA CHEKI No:{order.get('id', '')}")
 
     c.setFont("Helvetica", 10)
     c.drawString(50, height - 80, f"👤 Mijoz: {user.get('first_name', '')} (@{user.get('user_name', '')})")
@@ -34,7 +31,7 @@ def generate_order_receipt(order, user, address):
         total = float(item["total_price"])
         c.drawString(50, y, f"• {name} — {qty} x {price:.2f} = {total:.2f} so‘m")
         y -= 15
-        if y < 50:  # sahifa to‘lib qolsa
+        if y < 50:
             c.showPage()
             y = height - 50
 
