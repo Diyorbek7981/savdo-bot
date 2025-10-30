@@ -621,6 +621,7 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
             return
 
         name_category_id = int(callback.data.split("_")[1])
+        category_id = int(callback.data.split("_")[2])
 
         if language == "ru":
             product_response = requests.get(f"{API}/{language}/namecat_to_product/{name_category_id}/")
@@ -647,7 +648,7 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
         }
         await callback.message.answer(
             text=messages.get(language, messages["uz"]),
-            reply_markup=prod_inline(products, language, name_category_id)
+            reply_markup=prod_inline(products, language, category_id)
         )
 
     except Exception as e:
