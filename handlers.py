@@ -620,8 +620,7 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
             await state.set_state(SignupStates.name)
             return
 
-        name_category_id = int(callback.data.split("_")[1])
-        category_id = int(callback.data.split("_")[2])
+        name_category_id, category_id = map(int, callback.data.split("_")[1:3])
 
         if language == "ru":
             product_response = requests.get(f"{API}/{language}/namecat_to_product/{name_category_id}/")
@@ -648,7 +647,7 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
         }
         await callback.message.answer(
             text=messages.get(language, messages["uz"]),
-            reply_markup=prod_inline(products, language, category_id)
+            reply_markup=prod_inline(products, language, name_category_id, category_id)
         )
 
     except Exception as e:
@@ -658,7 +657,7 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("prod_"))
 async def show_product_detail(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
-    product_id = int(callback.data.split("_")[1])
+    product_id, name_category_id, category_id = map(int, callback.data.split("_")[1:4])
 
     try:
         response = requests.get(f"{API}/users/{callback.from_user.id}")
@@ -713,13 +712,13 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
                 photo=types.FSInputFile(product['photo']),
                 caption=caption,
                 parse_mode=ParseMode.HTML,
-                reply_markup=order_inline(product_id, language, product['name_category'])
+                reply_markup=order_inline(product_id, language, name_category_id, category_id)
             )
         else:
             await callback.message.answer(
                 text=caption,
                 parse_mode=ParseMode.HTML,
-                reply_markup=order_inline(product_id, language, product['name_category'])
+                reply_markup=order_inline(product_id, language, name_category_id, category_id)
             )
     except Exception as e:
         await callback.message.answer(f"⚠️ So‘rovda xatolik: {e}", show_alert=True)
@@ -727,7 +726,10 @@ async def show_product_detail(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("buy_"))
 async def ask_quantity(callback: CallbackQuery, state: FSMContext):
-    product_id = int(callback.data.split("_")[1])
+    parts = callback.data.split("_")
+    product_id = int(parts[1])
+    name_category_id = int(parts[2])
+    category_id = int(parts[3])
     try:
         response = requests.get(f"{API}/users/{callback.from_user.id}")
         if response.status_code != 200:
@@ -773,7 +775,11 @@ async def ask_quantity(callback: CallbackQuery, state: FSMContext):
             else:
                 return f"⚠️Error in the request: {res_or_cre.status_code} | {res_or_cre.text}"
         else:
-            await state.update_data(product_id=product_id)
+            await state.update_data(
+                product_id=product_id,
+                name_category_id=name_category_id,
+                category_id=category_id
+            )
             messages = {
                 "uz": "\n\n🖊️ ✨  <b><i>Qancha hohlaysiz?</i></b>\n\n<b><i>(Raqam kiriting)</i></b>\n\n",
                 "ru": "\n\n🖊️ ✨  <b><i>Сколько хотите?</i></b>\n\n<b><i>(введите число)</i></b>\n\n"
@@ -789,6 +795,8 @@ async def ask_quantity(callback: CallbackQuery, state: FSMContext):
 async def quantity_entered(message: Message, state: FSMContext):
     data = await state.get_data()
     product_id = data.get("product_id")
+    name_category_id = data.get("name_category_id")
+    category_id = data.get("category_id")
 
     try:
         quantity = float(message.text)
@@ -824,7 +832,7 @@ async def quantity_entered(message: Message, state: FSMContext):
                 )
             }
             await message.answer(messages.get(language, messages['uz']),
-                                 reply_markup=back_inline(language, product['category']))
+                                 reply_markup=back_inline(language, name_category_id, category_id))
             return
 
         existing_item = next((item for item in user_order["items"] if item["product"] == product_id), None)
@@ -887,8 +895,7 @@ async def quantity_entered(message: Message, state: FSMContext):
 async def back_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     try:
-        current_state = await state.get_state()
-        if current_state is not None:
+        if await state.get_state():
             await state.clear()
 
         response = requests.get(f"{API}/users/{callback.from_user.id}")
@@ -902,51 +909,30 @@ async def back_handler(callback: CallbackQuery, state: FSMContext):
         data = callback.data.split("_")
 
         if data[1] == "cat":
-            if language == "ru":
-                catgs = requests.get(f"{API}/{language}/cat_list/").json()
-            else:
-                catgs = requests.get(f"{API}/cat_list/").json()
+            catgs = requests.get(f"{API}/{language}/cat_list/").json() if language == "ru" else requests.get(
+                f"{API}/cat_list/").json()
+            msg = {"uz": "📦 Kategoriyalar ro‘yxati:", "ru": "📦 Список категорий:"}
+            await callback.message.answer(msg.get(language), reply_markup=cat_inline(catgs))
 
-            msg = {
-                "uz": "📦 Kategoriyalar ro‘yxati:",
-                "ru": "📦 Список категорий:"
-            }
-            await callback.message.answer(
-                text=msg.get(language, msg["uz"]),
-                reply_markup=cat_inline(catgs)
-            )
 
         elif data[1] == "namecat":
             category_id = int(data[2])
-            if language == "ru":
-                namecats = requests.get(f"{API}/{language}/category_to_name/{category_id}/").json()
-            else:
-                namecats = requests.get(f"{API}/category_to_name/{category_id}/").json()
-
-            msg = {
-                "uz": "📂 Nom kategoriyalar ro‘yxati:",
-                "ru": "📂 Список подкатегорий:"
-            }
-            await callback.message.answer(
-                text=msg.get(language, msg["uz"]),
-                reply_markup=prod_name_inline(namecats, language, category_id)
-            )
+            namecats = requests.get(
+                f"{API}/{language}/category_to_name/{category_id}/").json() if language == "ru" else requests.get(
+                f"{API}/category_to_name/{category_id}/").json()
+            msg = {"uz": f"📦 {len(namecats)} ta kategoriya topildi:", "ru": f"📦 Найдено {len(namecats)} товаров:"}
+            await callback.message.answer(msg.get(language),
+                                          reply_markup=prod_name_inline(namecats, language, category_id))
 
         elif data[1] == "prod":
             name_category_id = int(data[2])
-            if language == "ru":
-                products = requests.get(f"{API}/{language}/namecat_to_product/{name_category_id}/").json()
-            else:
-                products = requests.get(f"{API}/namecat_to_product/{name_category_id}/").json()
-
-            msg = {
-                "uz": "🛍 Mahsulotlar ro‘yxati:",
-                "ru": "🛍 Список товаров:"
-            }
-            await callback.message.answer(
-                text=msg.get(language, msg["uz"]),
-                reply_markup=prod_inline(products, language, name_category_id)
-            )
+            category_id = int(data[3])
+            products = requests.get(
+                f"{API}/{language}/namecat_to_product/{name_category_id}/").json() if language == "ru" else requests.get(
+                f"{API}/namecat_to_product/{name_category_id}/").json()
+            msg = {"uz": "🛍 Mahsulotlar ro‘yxati:", "ru": "🛍 Список товаров:"}
+            await callback.message.answer(msg.get(language),
+                                          reply_markup=prod_inline(products, language, name_category_id, category_id))
 
         else:
             await callback.answer("⚠️ Noma’lum orqaga tur!", show_alert=True)

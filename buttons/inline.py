@@ -31,18 +31,18 @@ def prod_name_inline(data: list, language: str, category_id: int):
     markup.row(
         InlineKeyboardButton(
             text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
-            callback_data=f"back_cat_{category_id}"
+            callback_data=f"back_cat"
         )
     )
     return markup.as_markup()
 
 
-def prod_inline(data: list, language: str, category_id: int):
+def prod_inline(data: list, language: str, name_category_id: int, category_id: int):
     markup = InlineKeyboardBuilder()
     for p in data:
         markup.button(
             text=f"{p['name']}",
-            callback_data=f"prod_{p['id']}"
+            callback_data=f"prod_{p['id']}_{name_category_id}_{category_id}"
         )
     markup.adjust(2, repeat=True)
     markup.row(
@@ -60,23 +60,23 @@ messages = {
 }
 
 
-def order_inline(product_id: int, language: str, category_id: int):
+def order_inline(product_id: int, language: str, name_category_id: int, category_id: int):
     text = messages.get(language, messages["uz"])
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=text, callback_data=f"buy_{product_id}")],
+            [InlineKeyboardButton(text=text, callback_data=f"buy_{product_id}_{name_category_id}_{category_id}")],
             [InlineKeyboardButton(text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
-                                  callback_data=f"back_prod_{category_id}")]
+                                  callback_data=f"back_prod_{name_category_id}_{category_id}")]
         ]
     )
     return markup
 
 
-def back_inline(language: str, category_id: int):
+def back_inline(language: str, name_category_id: int, category_id: int):
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
-                                  callback_data=f"back_prod_{category_id}")]
+                                  callback_data=f"back_prod_{name_category_id}_{category_id}")]
         ]
     )
     return markup
