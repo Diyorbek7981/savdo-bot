@@ -4,7 +4,7 @@ from aiogram.types import CallbackQuery
 from buttons.inline import language_button, cat_inline, prod_inline, order_inline, back_inline, prod_name_inline
 from buttons.reply import get_menu, get_phone, check, menu, comp_ord, check_after_reg
 import requests
-from config import API, ADMIN
+from config import API, ADMIN, ADMIN1
 from aiogram.fsm.context import FSMContext
 from states import SignupStates, OrderStates, CompleteOrderStates
 from aiogram.types import ReplyKeyboardRemove
@@ -599,7 +599,6 @@ async def category_selected(callback: CallbackQuery, state):
 
 @router.callback_query(F.data.startswith("namecat_"))
 async def name_category_selected(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
     try:
         response = requests.get(f"{API}/users/{callback.from_user.id}")
         if response.status_code != 200:
@@ -645,7 +644,7 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
             "uz": f"🛍 {len(products)} ta mahsulot topildi:",
             "ru": f"🛍 Найдено {len(products)} товаров:"
         }
-        await callback.message.answer(
+        await callback.message.edit_text(
             text=messages.get(language, messages["uz"]),
             reply_markup=prod_inline(products, language, name_category_id, category_id)
         )
@@ -656,7 +655,6 @@ async def name_category_selected(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("prod_"))
 async def show_product_detail(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
     product_id, name_category_id, category_id = map(int, callback.data.split("_")[1:4])
 
     try:
@@ -1100,6 +1098,12 @@ async def confirm_order_state(message: Message, state: FSMContext):
 
             await message.bot.send_document(
                 ADMIN,
+                document=pdf_file,
+                caption=f"📦 Yangi buyurtma ({user.get('first_name', '')})\nBuyutrma raqami: No{order.get('id', '')}"
+            )
+
+            await message.bot.send_document(
+                ADMIN1,
                 document=pdf_file,
                 caption=f"📦 Yangi buyurtma ({user.get('first_name', '')})\nBuyutrma raqami: No{order.get('id', '')}"
             )
