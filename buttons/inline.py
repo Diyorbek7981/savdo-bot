@@ -44,7 +44,7 @@ def prod_inline(data: list, language: str, name_category_id: int, category_id: i
             text=f"{p['name']}",
             callback_data=f"prod_{p['id']}_{name_category_id}_{category_id}"
         )
-    markup.adjust(2, repeat=True)
+    markup.adjust(1, repeat=True)
     markup.row(
         InlineKeyboardButton(
             text="⬅️ Orqaga" if language == "uz" else "⬅️ Назад",
